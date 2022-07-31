@@ -1,134 +1,169 @@
 import discord
+from discord.ext.commands import CommandNotFound
 from discord.ext import commands
 import blackjack as b
 import os
+from keep_alive import keep_alive
+import tools as tl
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
-
 DISCORD_TOKEN = os.environ['DISCORD_TOKEN']
-bot = commands.Bot(command_prefix='BJ:')
+bot = commands.Bot(command_prefix='bj:')
+
 
 @bot.event
 async def on_ready():
 	guild_count = 0
-
 	for guild in bot.guilds:
 		print(f"- {guild.id} (name: {guild.name})")
 		guild_count = guild_count + 1
 
-	print("SampleDiscordBot is in " + str(guild_count) + " guilds.")
-	
+	print("BarryJack is in " + str(guild_count) + " guilds.")
+
 
 @bot.event
 async def on_message(message):
-        
-        if message.author == b.p.name:
+        g = None
+        for game in b.games:
+                if  message.author == game.player.name:
+                        g = game
+                        break
+                
+        if message.author != bot.user and g != None:
+                msg = "```" + str(message.author.display_name) + " is betting " + str(g.player.bet) + " moneys!\n"
                 message2 = message.content.lower()
-                if message2 == "h" or message2 == "s":
-                        b.g.playerChoice = message2
-                        print(b.g.playerChoice)
+                if message2 == "bj:g":
+                        b.games.remove(g)
+                        await message.channel.send("```GAME ENDED```")
+                        tl.modMON(message.guild, message.author,-1 * g.player.bet)
+                        return
+                
+                if message2 == "h":
+                        g.player.hits()
+                        if checkBust(g) == False:
+                                msg += g.player.showCardsR() + "\n"
+                                msg += g.player.showScoreR() + "\n"
+                                msg += "Hit or Stand (h/s)" + "\n"
+                                
+                        else:
+                                msg += "You busted!" + "\n"
+                                g.dealerTurn(g.dealer, g.player)
+                                msg += g.player.showCardsR() + "\n"
+                                msg += g.player.showScoreR() + "\n"
+                                msg += g.dealer.showCardsR() + "\n"
+                                msg += g.dealer.showScoreR() + "\n"
+                                if g.dealer.score == g.player.score:
+                                       msg += "\nYOU TIED \n" 
+
+                                elif  g.player.score > 21 or (g.dealer.score > g.player.score and g.dealer.score < 22):
+                                        msg += "\nDEALER WON, YOU LOST \n"
+                                        tl.modMON(message.guild, message.author,-1 * g.player.bet)
+
+                                else:
+                                        msg += "\nYOU WON, DEALER LOST \n"
+                                        tl.modMON(message.guild, message.author, g.player.bet)
                         
+                                b.games.remove(g)
+
+                elif message2 == "s":
+                        #b.g.player.stands()
+                        g.dealerTurn(g.dealer, g.player)
+                        msg += g.player.showCardsR() + "\n"
+                        msg += g.player.showScoreR() + "\n"
+                        msg += g.dealer.showCardsR() + "\n"
+                        msg += g.dealer.showScoreR() + "\n"
+                        if g.dealer.score == g.player.score:
+                               msg += "\nYOU TIED \n" 
+
+                        elif  g.player.score > 21 or (g.dealer.score > g.player.score and g.dealer.score < 22):
+                                msg += "\nDEALER WON, YOU LOST \n"
+                                tl.modMON(message.guild, message.author,-1 * g.player.bet)
+                        else:
+                                msg += "\nYOU WON, DEALER LOST \n"
+                                tl.modMON(message.guild, message.author, g.player.bet)
+                
+                        b.games.remove(g)
+
+                msg += "```"
+                await message.channel.send(msg)
+
         await bot.process_commands(message)
 
 @bot.command()
-async def Starts(ctx):
-        b.p.setName(ctx.author)
+async def g(ctx, mon: int):
+        if tl.getMON(str(ctx.guild.id), ctx.author) <= 0:
+                tl.modMON(ctx.guild, ctx.author, 5)
+                await ctx.channel.send("You had no money so we gave you 5")
         
-        while (b.g.playerWinFlag != True
-               and b.g.dealerWinFlag != True) and b.g.tieFlag != True:
-            if b.p.turnOver == False:
-                b.p.hits() #player gains a card
-                b.d.hits() #dealer gains a card
-                b.p.hits() #player gains a card
-                b.d.hits() #dealer gains a card
-                await ctx.send(b.d.showStartCardsR())  #displays dealer 2nd card
-                await ctx.send(b.d.showStartScoreR() ) #displays dealer 2nd card score
-                await ctx.send(b.p.showCardsR()  )#displays all of the player cards (in a array currently)
-                await ctx.send(b.p.showScoreR()  )#displays total player score
-                b.p.turnOver = False
-
-            #Game loops here
-            while b.p.turnOver == False:
+        if tl.getMON(str(ctx.guild.id), ctx.author) >= mon:
+                g = b.Game(b.Player(), b.Dealer())
+                g.player.bet = mon
+                b.games.append(g)
                 
-                while b.g.playerChoice != "s" and b.g.playerChoice != "h" and b.p.turnOver == False:
-                        
-                        if b.g.checkBust():
-                                b.g.playerWinFlag = False
-                                b.p.turnOver = True
-                                b.g.stands()
-                                return
-                                
-                                
-                                
+                #limit amount of games
+                if len(b.games) > 50:
+                        b.games.pop(0)
 
-                        else:
-                                await ctx.send("Hit or Stand? (H/S)")
-
-                                
-                                
-
-                        if b.g.playerChoice == "s":
-                                b.p.turnOver = True
-                                return
-
-                        elif b.g.playerChoice == "h":
-                                b.Player.hits(b.p)
-                                await ctx.send(b.Player.showCardsR(b.p))
-                                await ctx.send(b.Player.showScoreR(b.p))
-                                b.Player.showCards(b.p)
-                                b.Player.showScore(b.p)
-                                b.g.playerChoice = ""
-                                b.g.checkStatus(b.d, b.p)
-                                if b.g.checkBust() == False:
-                                        await ctx.send("Hit or Stand? (H/S)")
-                                        print(b.g.playerChoice+"YOMOMA")
-                                
-                        
-                b.g.dealerTurn(b.d, b.p)
-                b.g.checkStatus(b.d,b.p)
-                await ctx.send(b.d.showStartCardsR())  #displays dealer 2nd card
-                await ctx.send(b.d.showStartScoreR() ) #displays dealer 2nd card score
-                await ctx.send(b.p.showCardsR()  )#displays all of the player cards (in a array currently)
-                await ctx.send(b.p.showScoreR()  )#))
-                                
-
-        ##Print who won
-        if b.g.playerWinFlag == True:
-            print(f"Player wins! \nPlayer Score: {b.p.score} \nDealer Score: {b.d.score}")
-        
-        elif b.g.dealerWinFlag == True:
-            print(f"Dealer wins! \nDealer Score: {b.d.score} \nPlayer Score: {b.p.score}")
-        
+                g.player.setName(ctx.author)
+                setup(g)
+                msg = "```" + str(ctx.author.display_name) + " is betting " + str(g.player.bet) + " moneys!\n"
+                msg += g.player.showCardsR() + "\n"
+                msg += g.player.showScoreR() + "\n"
+                msg += g.dealer.showStartCardsR() + "\n"
+                msg += g.dealer.showStartScoreR() + "\n"
+                msg += "Hit or Stand (h/s)" + "\n"
+                msg += "```"
+                await ctx.channel.send(msg)
         else:
-            print(f"Tie! \nPlayer Score: {b.p.score} \nDealer Score: {b.d.score}")
+                await ctx.message.reply(f'{ctx.author.display_name}, you can not bet that much money.')
+
+
 
 @bot.command()
-async def Start(ctx):
-        b.g.runGame()
-        await show(ctx)
+async def giveMON(ctx, user: discord.Member, MON: int):
+        if user == ctx.author:
+                    return
 
-    
+        if MON < 1:
+                await ctx.message.reply(f'{ctx.author.display_name}, you must give at least 1 MON with your thanks.')
+                return
+
+        guild = ctx.channel.guild
+        if MON > tl.getMON(str(guild.id), ctx.author):
+                await ctx.message.reply(f'{ctx.author.display_name}, you do not have enough MON to give so much thanks.')
+                return
+        else:
+                tl.modMON(guild, ctx.author,-1 * MON)
+                tl.modMON(guild, user, MON)
+                await ctx.send(f"You gave {user} {MON} moneys.")
+
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, CommandNotFound):
+        await ctx.send(f"{ctx.author.mention}\nInvalid command for Barry Jack!")
+        return
+    return error
+
 @bot.command()
-async def Hit(ctx):
-    pass
+async def money(ctx):
+        await ctx.channel.send(str(tl.getMON(ctx.guild.id, ctx.author)))
 
-@bot.command()
-async def say(ctx, msg):
-    await ctx.send(msg)
-
-async def show(ctx):
-       await ctx.send(b.d.showStartCardsR())  #displays dealer 2nd card
-       await ctx.send(b.d.showStartScoreR())  #displays dealer 2nd card score
-       await ctx.send(b.p.showCardsR())  #displays all of the player cards (in a array currently)
-       await ctx.send(b.p.showScoreR())  #displays total player score
-
-        
+def setup(g):
+        g.player.hits()
+        g.player.hits()
+        g.dealer.hits()
+        g.dealer.hits()
 
 
-# EXECUTES THE BOT WITH THE SPECIFIED TOKEN. TOKEN HAS BEEN REMOVED AND USED JUST AS AN EXAMPLE.
+def checkBust(g): #check if player busts
+        if g.player.score > 21:
+            return True
+        else:
+            return False
+  
+# EXECUTES THE BOT.
+keep_alive()
 bot.run(DISCORD_TOKEN)
-
-
