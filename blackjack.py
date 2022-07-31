@@ -21,7 +21,7 @@ cards = {
 
 ##holds points to cards conversion
 points = {
-    'Ace': 11,  #NEED TO FIX ACE TO CHANGE IF OVER 21
+    'Ace': 11,
     '2': 2,
     '3': 3,
     '4': 4,
@@ -45,10 +45,7 @@ def draw_card():
         counter += 1
         if counter == random_index:
             return [i, points[i]]
-
-    
-
-
+          
 #Dealer Class with Dealer functions
 class Dealer:
     def __init__(self):
@@ -107,6 +104,7 @@ class Player:
         self.aceCount = 0
         self.ace1Count = 0
         self.name = ""
+        self.bet = 0
 
     def setName(self, name):
         self.name = name
@@ -145,11 +143,13 @@ class Player:
 #Manages Game and controls dealer/player moves
 class Game(Player, Dealer):
     def __init__(self, Player, Dealer):
+        self.player = Player
+        self.dealer = Dealer
         self.playerWinFlag = False
         self.dealerWinFlag = False
         self.tieFlag = False
         self.playerChoice = ""
-
+      
     def makeInput(self): #Make input
         while self.playerChoice != "s" and self.playerChoice != "h" and p.turnOver == False:
 
@@ -237,8 +237,11 @@ class Game(Player, Dealer):
             else:
                 dealer.turnOver = True
                 return
+ 
+games = []
 
 p = Player()
 d = Dealer()
 g = Game(p, d)
+
 
