@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DISCORD_TOKEN = os.environ['DISCORD_TOKEN']
-bot = commands.Bot(command_prefix='bj:')
+bot = commands.AutoShardedBot(shard_count=10, command_prefix="bj:")
 
 
 @bot.event
